@@ -6,22 +6,33 @@ import (
 	"net/http"
 	"runtime/debug"
 	"time"
+
+	"github.com/urfave/negroni"
 )
 
-func Logger(w ResponseWriteReader, r *http.Request, next func()) {
+type (
+	Log struct{}
+	Rec struct{}
+)
+
+func (l *Log) ServeHTTP(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	t := time.Now()
-	next()
+	next(w, r)
+	res := w.(negroni.ResponseWriter)
 	log.SetPrefix("[Fox] ")
 	log.Printf("| %v | %v | %v | %v | content-length: %v",
 		r.Method,
-		w.StatusCode(),
+		res.Status(),
 		r.URL.String(),
 		time.Now().Sub(t).String(),
-		w.ContentLength())
+		res.Size())
 	log.SetPrefix("")
 }
+func NewLog() *Log {
+	return &Log{}
+}
 
-func Recovery(w ResponseWriteReader, r *http.Request, next func()) {
+func (rec *Rec) ServeHTTP(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	defer func() {
 		if err := recover(); err != nil {
 			fmt.Println(err)
@@ -29,5 +40,8 @@ func Recovery(w ResponseWriteReader, r *http.Request, next func()) {
 			w.WriteHeader(500) // 500
 		}
 	}()
-	next()
+	next(w, r)
+}
+func NewRec() *Rec {
+	return &Rec{}
 }
